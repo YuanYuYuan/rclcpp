@@ -30,6 +30,7 @@
 #include "rcpputils/filesystem_helper.hpp"
 #include "rcpputils/scope_exit.hpp"
 
+#include "rmw/rmw.h"
 #include "rmw/validate_namespace.h"
 
 #include "test_msgs/msg/basic_types.hpp"
@@ -3353,6 +3354,12 @@ TEST_F(TestNode, wait_for_graph_event) {
 }
 
 TEST_F(TestNode, create_sub_node_rmw_validate_namespace_error) {
+  // Skip mocking test for rmw_zenoh_rs - mocking doesn't work with Rust libraries
+  const char * rmw_impl = rmw_get_implementation_identifier();
+  if (rmw_impl && std::string(rmw_impl) == "rmw_zenoh_rs") {
+    GTEST_SKIP() << "Mocking is not supported for Rust-based RMW implementations (rmw_zenoh_rs)";
+  }
+
   auto node = std::make_shared<rclcpp::Node>("node", "ns");
   {
     auto mock = mocking_utils::patch_and_return(

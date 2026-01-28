@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "rcl/publisher.h"
+#include "rmw/rmw.h"
 
 #include "rclcpp/exceptions.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -341,6 +342,12 @@ TEST_F(TestPublisher, rcl_publisher_get_rmw_handle_error) {
 }
 
 TEST_F(TestPublisher, rcl_publisher_get_gid_for_publisher_error) {
+  // Skip mocking test for rmw_zenoh_rs - mocking doesn't work with Rust libraries
+  const char * rmw_impl = rmw_get_implementation_identifier();
+  if (rmw_impl && std::string(rmw_impl) == "rmw_zenoh_rs") {
+    GTEST_SKIP() << "Mocking is not supported for Rust-based RMW implementations (rmw_zenoh_rs)";
+  }
+
   initialize();
   auto mock = mocking_utils::patch_and_return(
     "lib:rclcpp", rmw_get_gid_for_publisher, RMW_RET_ERROR);
@@ -388,6 +395,12 @@ TEST_F(TestPublisher, rcl_publisher_get_actual_qos_error) {
 }
 
 TEST_F(TestPublisher, publishers_equal_rmw_compare_gids_error) {
+  // Skip mocking test for rmw_zenoh_rs - mocking doesn't work with Rust libraries
+  const char * rmw_impl = rmw_get_implementation_identifier();
+  if (rmw_impl && std::string(rmw_impl) == "rmw_zenoh_rs") {
+    GTEST_SKIP() << "Mocking is not supported for Rust-based RMW implementations (rmw_zenoh_rs)";
+  }
+
   initialize();
   auto mock = mocking_utils::patch_and_return(
     "lib:rclcpp", rmw_compare_gids_equal, RMW_RET_ERROR);
