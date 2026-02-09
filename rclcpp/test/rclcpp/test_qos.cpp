@@ -18,6 +18,7 @@
 
 #include "rclcpp/qos.hpp"
 
+#include "rmw/rmw.h"
 #include "rmw/types.h"
 
 TEST(TestQoS, equality_history) {
@@ -238,8 +239,11 @@ TEST(TestQoS, qos_check_compatible)
 
   // Note, the following incompatible tests assume we are using a DDS middleware,
   // and may not be valid for other RMWs.
-  // TODO(jacobperron): programmatically check if current RMW is one of the officially
-  //                    supported DDS middlewares before running the following tests
+  // Skip for rmw_zenoh - QoS compatibility checking is DDS-specific
+  const char * rmw_impl = rmw_get_implementation_identifier();
+  if (std::string(rmw_impl).find("rmw_zenoh") != std::string::npos) {
+    GTEST_SKIP() << "QoS compatibility checking is DDS-specific, skipping for rmw_zenoh";
+  }
 
   // Incompatible
   {

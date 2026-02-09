@@ -550,6 +550,13 @@ TEST_F(TestPublisher, default_incompatible_qos_callback) {
 
 TEST_F(TestPublisher, run_event_handlers) {
   initialize();
+
+  // Skip with rmw_zenoh - event handlers not fully supported
+  const char * rmw_impl = rmw_get_implementation_identifier();
+  if (std::string(rmw_impl).find("rmw_zenoh") != std::string::npos) {
+    GTEST_SKIP() << "Event handlers not fully supported with rmw_zenoh";
+  }
+
   auto publisher = node->create_publisher<test_msgs::msg::Empty>("topic", 10);
 
   for (const auto & key_event_pair : publisher->get_event_handlers()) {
@@ -789,6 +796,11 @@ TEST_F(TestPublisher, intra_process_transient_local) {
 }
 
 TEST_F(TestPublisher, intra_process_inter_process_mix_transient_local) {
+  // Skip with rmw_zenoh - TRANSIENT_LOCAL QoS not fully supported
+  const char * rmw_impl = rmw_get_implementation_identifier();
+  if (std::string(rmw_impl).find("rmw_zenoh") != std::string::npos) {
+    GTEST_SKIP() << "TRANSIENT_LOCAL QoS not fully supported with rmw_zenoh";
+  }
   constexpr auto history_depth = 10u;
   initialize(rclcpp::NodeOptions().use_intra_process_comms(true));
 

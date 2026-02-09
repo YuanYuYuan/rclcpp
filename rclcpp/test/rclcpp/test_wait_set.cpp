@@ -21,6 +21,7 @@
 #include "rcl_interfaces/srv/list_parameters.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "test_msgs/msg/basic_types.hpp"
+#include "rmw/rmw.h"
 
 #include "../utils/rclcpp_gtest_macros.hpp"
 
@@ -254,15 +255,19 @@ TEST_F(TestWaitSet, add_guard_condition_to_two_different_wait_set) {
       wait_set2.add_service(service);
     }, std::runtime_error);
 
-    rclcpp::PublisherOptions po;
-    po.event_callbacks.deadline_callback = [](rclcpp::QOSDeadlineOfferedInfo &) {};
-    auto pub = node->create_publisher<test_msgs::msg::BasicTypes>("~/test", 1, po);
-    auto qos_event = pub->get_event_handlers().begin()->second;
-    wait_set1.add_waitable(qos_event, pub);
-    ASSERT_THROW(
-    {
-      wait_set2.add_waitable(qos_event, pub);
-    }, std::runtime_error);
+    // Skip deadline event test with rmw_zenoh - deadline events not supported
+    const char * rmw_impl = rmw_get_implementation_identifier();
+    if (std::string(rmw_impl).find("rmw_zenoh") == std::string::npos) {
+      rclcpp::PublisherOptions po;
+      po.event_callbacks.deadline_callback = [](rclcpp::QOSDeadlineOfferedInfo &) {};
+      auto pub = node->create_publisher<test_msgs::msg::BasicTypes>("~/test", 1, po);
+      auto qos_event = pub->get_event_handlers().begin()->second;
+      wait_set1.add_waitable(qos_event, pub);
+      ASSERT_THROW(
+      {
+        wait_set2.add_waitable(qos_event, pub);
+      }, std::runtime_error);
+    }
   }
 }
 
@@ -278,9 +283,13 @@ TEST_F(TestWaitSet, add_remove_wait) {
   guard_condition->trigger();
 
   // For coverage reasons, this subscription should have event handlers
+  // Skip deadline/liveliness events with rmw_zenoh - not supported
   rclcpp::SubscriptionOptions subscription_options;
-  subscription_options.event_callbacks.deadline_callback = [](auto) {};
-  subscription_options.event_callbacks.liveliness_callback = [](auto) {};
+  const char * rmw_impl = rmw_get_implementation_identifier();
+  if (std::string(rmw_impl).find("rmw_zenoh") == std::string::npos) {
+    subscription_options.event_callbacks.deadline_callback = [](auto) {};
+    subscription_options.event_callbacks.liveliness_callback = [](auto) {};
+  }
   auto do_nothing = [](std::shared_ptr<const test_msgs::msg::BasicTypes>) {};
   auto sub =
     node->create_subscription<test_msgs::msg::BasicTypes>(
@@ -296,12 +305,17 @@ TEST_F(TestWaitSet, add_remove_wait) {
   auto service =
     node->create_service<rcl_interfaces::srv::ListParameters>("~/test", srv_do_nothing);
 
+  // Skip deadline event with rmw_zenoh - not supported
+  const char * rmw_impl2 = rmw_get_implementation_identifier();
+  bool has_deadline_support = std::string(rmw_impl2).find("rmw_zenoh") == std::string::npos;
+
   rclcpp::PublisherOptions publisher_options;
-  publisher_options.event_callbacks.deadline_callback =
-    [](rclcpp::QOSDeadlineOfferedInfo &) {};
+  if (has_deadline_support) {
+    publisher_options.event_callbacks.deadline_callback =
+      [](rclcpp::QOSDeadlineOfferedInfo &) {};
+  }
   auto pub = node->create_publisher<test_msgs::msg::BasicTypes>(
     "~/test", 1, publisher_options);
-  auto qos_event = pub->get_event_handlers().begin()->second;
 
   // Subscription mask is required here for coverage.
   wait_set.add_subscription(sub, {true, true, true});
@@ -309,7 +323,10 @@ TEST_F(TestWaitSet, add_remove_wait) {
   wait_set.add_timer(timer);
   wait_set.add_client(client);
   wait_set.add_service(service);
-  wait_set.add_waitable(qos_event, pub);
+  if (has_deadline_support) {
+    auto qos_event = pub->get_event_handlers().begin()->second;
+    wait_set.add_waitable(qos_event, pub);
+  }
 
   // At least timer or guard_condition should trigger
   EXPECT_EQ(rclcpp::WaitResultKind::Ready, wait_set.wait(std::chrono::seconds(1)).kind());
@@ -319,7 +336,10 @@ TEST_F(TestWaitSet, add_remove_wait) {
   wait_set.remove_timer(timer);
   wait_set.remove_client(client);
   wait_set.remove_service(service);
-  wait_set.remove_waitable(qos_event);
+  if (has_deadline_support) {
+    auto qos_event = pub->get_event_handlers().begin()->second;
+    wait_set.remove_waitable(qos_event);
+  }
 
   EXPECT_EQ(rclcpp::WaitResultKind::Empty, wait_set.wait(std::chrono::seconds(1)).kind());
 }
